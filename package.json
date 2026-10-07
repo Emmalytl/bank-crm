@@ -1,0 +1,32 @@
+{
+  "name": "bank-crm-neon",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Multi-bank React CRM for marketers and management with Neon PostgreSQL",
+  "engines": {
+    "node": "22.x || 24.x"
+  },
+  "workspaces": [
+    "web",
+    "server"
+  ],
+  "scripts": {
+    "setup": "node server/scripts/configure.mjs",
+    "dev": "node server/scripts/dev.mjs",
+    "build": "npm run build --workspace web",
+    "start": "npm run start --workspace server",
+    "db:setup": "node server/scripts/setup-db.mjs",
+    "db:seed": "node server/scripts/seed-demo.mjs",
+    "bank:create": "node server/scripts/create-bank.mjs",
+    "test": "node --test server/test/unit.test.mjs server/test/integration.test.mjs server/test/seed.test.mjs server/test/entrypoint.test.mjs web/test/interactions.test.mjs",
+    "test:browser": "playwright test",
+    "check": "npm test && npm run build"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14",
+    "@playwright/test": "^1.56.0",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.1.2"
+  }
+}

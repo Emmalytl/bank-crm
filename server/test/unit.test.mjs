@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {hashPassword,verifyPassword,leadScope,peopleScope,safeEqual,cookieToken} from '../src/security.mjs';
+import {schemas,leadPatch} from '../src/validation.mjs';
+import {bind} from '../src/db.mjs';
+test('passwords salted and incorrect passwords rejected',async()=>{const a=await hashPassword('StrongPasswordForTest!');assert.notEqual(a,await hashPassword('StrongPasswordForTest!'));assert.equal(await verifyPassword('StrongPasswordForTest!',a),true);assert.equal(await verifyPassword('wrong',a),false);});
+test('scope comes from authenticated bank and owner',()=>{assert.deepEqual(leadScope({bank_id:2,id:8,role:'marketer'}).values,[2,8]);assert.match(peopleScope({bank_id:2,id:8,role:'marketer'}).sql,/u.id = \?/);});
+test('PATCH preserves omitted fields',()=>{assert.deepEqual(leadPatch.parse({name:'Changed'}),{name:'Changed'});assert.deepEqual(leadPatch.parse({}),{});});
+test('strict input and real calendar dates',()=>{assert.equal(schemas.lead.safeParse({name:'Test',bank_id:9}).success,false);assert.equal(schemas.activity.safeParse({type:'task',summary:'Test',due_date:'2026-02-31'}).success,false);});
+test('session parsing and CSRF comparison',()=>{assert.equal(cookieToken('crm_session='+'a'.repeat(64)),'a'.repeat(64));assert.equal(cookieToken('crm_session=no'),null);assert.equal(safeEqual(undefined,'abc'),false);assert.equal(safeEqual('abc','abc'),true);});
+test('PostgreSQL bindings number values and ignore quoted literals',()=>{assert.deepEqual(bind("SELECT '?' WHERE bank_id=? AND id=?",[2,8]),{text:"SELECT '?' WHERE bank_id=$1 AND id=$2",values:[2,8]});assert.throws(()=>bind('SELECT ?',[1,2]),/count mismatch/);});
+import {databaseOptions,allowedOrigins,config} from '../src/config.mjs';
+test('PostgreSQL INTEGER identifiers reject overflow',()=>{assert.equal(schemas.id.safeParse(2147483648).success,false);});
+test('remote database always verifies TLS and connection settings reject unsupported protocols',()=>{const url=new URL(databaseOptions('postgresql://user:password@ep-test.neon.tech/db?sslmode=disable').connectionString);assert.equal(url.searchParams.get('sslmode'),'verify-full');assert.throws(()=>databaseOptions('mysql://localhost/db'));assert.equal(databaseOptions('postgresql://localhost/test').max,3);});
+test('production origins exclude local API shortcut',()=>{const old=config.production;config.production=true;try{assert.equal(allowedOrigins().includes('http://localhost:'+config.port),false);}finally{config.production=old;}});

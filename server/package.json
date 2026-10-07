@@ -1,0 +1,1 @@
+{"name":"@bank-crm/server","version":"1.0.0","private":true,"type":"module","scripts":{"dev":"node --watch src/index.mjs","start":"node src/index.mjs"},"dependencies":{"express":"^5.2.1","pg":"^8.16.3","dotenv":"^17.2.3","helmet":"^8.1.0","express-rate-limit":"^8.2.1","zod":"^4.1.12"}}
