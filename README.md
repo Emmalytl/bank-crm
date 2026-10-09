@@ -1,5 +1,11 @@
 # Bank CRM — React, Node and Neon PostgreSQL
 
+## Existing installation: interface upgrade
+
+This v2 candidate refreshes the interface. Your database, bank administrator and branch remain in the existing Neon database. Preserve your private `.env` and `.git` when copying the reviewed project files. Run `npm ci`, `npm test` and `npm run build`. **Do not repeat database setup, bank creation or demo seeding for this interface upgrade.** See `docs/REDESIGN-v2.md` and `docs/QA-REDESIGN.md` for changes and verification limits.
+
+The first-install instructions below are for a fresh installation only.
+
 A fresh multi-bank CRM for marketers and their management hierarchy, built with React, Node.js and Neon PostgreSQL. This is a new installation.
 
 ## Included scope

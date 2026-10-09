@@ -8,7 +8,7 @@ async function login(page,role){
  await page.getByRole('button',{name:'Open workspace'}).click();
  await expect(page.getByRole('heading',{name:'Overview',exact:true})).toBeVisible();
 }
-async function navigate(page,name){await page.locator('nav').getByRole('button',{name,exact:true}).click();}
+async function navigate(page,name){const toggle=page.getByRole('button',{name:'Open navigation',exact:true});if(await toggle.isVisible())await toggle.click();await page.locator('nav').getByRole('button',{name,exact:true}).click();}
 test('marketer converts a lead and manages an estimated opportunity',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await login(page,'marketer');
@@ -64,4 +64,9 @@ test('executive mobile workspace remains read-only',async({page})=>{
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
  await page.getByRole('button',{name:'Sign out',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Sign in to your bank'})).toBeVisible();
+});
+
+test('workspace page search and compact drawer keyboard dismissal',async({page})=>{
+ await login(page,'marketer');await page.getByLabel('Find a workspace page').fill('customers');await page.locator('.nav-search-results').getByRole('button',{name:'Customers',exact:true}).click();await expect(page.getByRole('heading',{name:'Customers',exact:true})).toBeVisible();await expect(page.getByLabel('Find a workspace page')).toHaveValue('');
+ await page.setViewportSize({width:390,height:844});const toggle=page.getByRole('button',{name:'Open navigation',exact:true});await toggle.click();await expect(toggle).toHaveAttribute('aria-expanded','true');await page.keyboard.press('Escape');await expect(toggle).toHaveAttribute('aria-expanded','false');await expect(toggle).toBeFocused();await toggle.click();await page.locator('.sidebar-backdrop').click({position:{x:10,y:400}});await expect(toggle).toHaveAttribute('aria-expanded','false');
 });

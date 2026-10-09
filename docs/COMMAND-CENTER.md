@@ -28,3 +28,8 @@ Candidate code and local verification are reviewable. Existing MySQL data is not
 - Independent QA/security department: 11 local tests passed; no blocking defect found within development scope. Cloud, browser and production qualification remain unverified.
 - Command Center integration: 15 tests passed, production build passed and npm audit returned zero known advisories. Browser download failure documented; runnable browser tests supplied.
 - Next owner: CEO reviews this ZIP and reports corrections. Neon configuration is entered privately in root .env. Public deployment, production data imports and consequential migration decisions await the appropriate concrete approval.
+
+
+## Interface milestone — 9 October 2026
+
+CEO requested substantial interface/design improvement. Candidate v2 (package1.1.0) delivered as a full review ZIP; actual department ownership is in REDESIGN-v2.md. Independent functional QA passed. Integrated final checks:15 tests passed, production build passed, zero npm advisories, four browser cases discovered. Runtime backend/schema/API bytes match the previous ZIP; no migration is required. Browser download failed, so screenshot and responsive layout inspection remain unverified. This candidate is not deployed to GitHub/Vercel. CEO reviews the candidate and reports corrections before the separate release step.

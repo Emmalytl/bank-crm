@@ -1,3 +1,7 @@
+# Current interface candidate
+
+For v2 / package 1.1.0 (9 October 2026), see `QA-REDESIGN.md` and `REDESIGN-v2.md`. The original foundation verification below is retained as historical evidence.
+
 # Candidate verification — 7 October 2026
 
 Environment: local Linux workspace, Node 24.19.0, React 19, Vite 7.3.7. No user database credentials or customer data were used.

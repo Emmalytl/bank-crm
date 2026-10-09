@@ -1,7 +1,28 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useId } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
-import { LayoutDashboard, Users, UserRound, TrendingUp, CalendarDays, Target, Package, Building2, ShieldCheck, Map } from "lucide-react";
+import {
+  LayoutDashboard,
+  Users,
+  UserRound,
+  TrendingUp,
+  CalendarDays,
+  Target,
+  Package,
+  Building2,
+  ShieldCheck,
+  Menu,
+  X,
+  ArrowUpRight,
+  ArrowRight,
+  BriefcaseBusiness,
+  CheckCircle2,
+  ChevronRight,
+  Search,
+  Landmark,
+  Clock3,
+  LogOut,
+} from "lucide-react";
 const statuses = [
   "new",
   "contacted",
@@ -71,7 +92,11 @@ function App() {
     [boot, setBoot] = useState(true),
     [page, setPage] = useState("dashboard"),
     [error, setError] = useState(""),
-    [version, setVersion] = useState(0);
+    [version, setVersion] = useState(0),
+    [drawer, setDrawer] = useState(false),
+    [navQuery, setNavQuery] = useState("");
+  const sidebarRef = useRef(null);
+  const mainRef = useRef(null);
   useEffect(() => {
     api("/auth/me")
       .then((x) => {
@@ -93,7 +118,64 @@ function App() {
     window.addEventListener("crm-session-expired", expired);
     return () => window.removeEventListener("crm-session-expired", expired);
   }, []);
+  // Escape closes the compact navigation without interrupting an active workflow.
+  useEffect(() => {
+    const close = (event) => {
+      if (event.key === "Escape") setDrawer(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, []);
+  // Match the stylesheet breakpoint; resizing to desktop must release the drawer's focus lock.
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const compact = window.matchMedia("(max-width: 800px)");
+    const resize = () => {
+      if (!compact.matches) setDrawer(false);
+    };
+    compact.addEventListener("change", resize);
+    return () => compact.removeEventListener("change", resize);
+  }, []);
+  // The mobile drawer traps focus and keeps background controls unavailable.
+  useEffect(() => {
+    if (!drawer || !sidebarRef.current) return;
+    const previous = document.activeElement;
+    const nodes = () =>
+      [...sidebarRef.current.querySelectorAll("button")].filter(
+        (node) => node.getClientRects().length,
+      );
+    nodes()[0]?.focus();
+    if (mainRef.current) mainRef.current.inert = true;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const trap = (event) => {
+      if (event.key !== "Tab") return;
+      const items = nodes(),
+        first = items[0],
+        last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      if (mainRef.current) mainRef.current.inert = false;
+      document.body.style.overflow = oldOverflow;
+      document.removeEventListener("keydown", trap);
+      previous?.focus();
+    };
+  }, [drawer]);
   const refresh = () => setVersion((v) => v + 1);
+  const navigate = (id) => {
+    setPage(id);
+    setError("");
+    setDrawer(false);
+    setNavQuery("");
+  };
   if (boot) return <div className="loading">Opening your workspace…</div>;
   if (!user)
     return (
@@ -107,77 +189,176 @@ function App() {
       />
     );
   const pages = [
-    ["dashboard", "Overview", <LayoutDashboard size={19}/>],
-    ["leads", "Leads & pipeline", <UserRound size={19}/>],
-    ["customers", "Customers", <Users size={19}/>],
-    ["opportunities", "Opportunities", <TrendingUp size={19}/>],
-    ["targets", "Targets", <Target size={19}/>],
-    ["products", "Products", <Package size={19}/>],
-    ["activities", "Follow-ups", <CalendarDays size={19}/>],
-    ["team", "People", <Users size={19}/>],
-    ["branches", "Branches", <Building2 size={19}/>],
-    ...(user.role === "bank_admin" ? [["audit", "Audit history", <ShieldCheck size={19}/>]] : []),
-    ["roadmap", "Delivery roadmap", <Map size={19}/>],
+    ["dashboard", "Overview", <LayoutDashboard size={19} />],
+    ["leads", "Leads & pipeline", <UserRound size={19} />],
+    ["customers", "Customers", <Users size={19} />],
+    ["opportunities", "Opportunities", <TrendingUp size={19} />],
+    ["targets", "Targets", <Target size={19} />],
+    ["products", "Products", <Package size={19} />],
+    ["activities", "Follow-ups", <CalendarDays size={19} />],
+    ["team", "People", <Users size={19} />],
+    ["branches", "Branches", <Building2 size={19} />],
+    ...(user.role === "bank_admin"
+      ? [["audit", "Audit history", <ShieldCheck size={19} />]]
+      : []),
   ];
+  const groups = [
+    [
+      "WORKSPACE",
+      ["dashboard", "leads", "customers", "opportunities", "activities"],
+    ],
+    ["PERFORMANCE", ["targets", "products"]],
+    ["ORGANISATION", ["team", "branches", "audit"]],
+  ];
+  const currentPage = pages.find((x) => x[0] === page)?.[1] || "Overview";
+  const matches = pages.filter((x) =>
+    x[1].toLowerCase().includes(navQuery.toLowerCase()),
+  );
   return (
-    <div className="app">
-      <aside>
-        <div className="brand">
-          <span className="brandmark">B</span>
-          <div>
-            Bank CRM<small>RELATIONSHIP WORKSPACE</small>
+    <div className={"app" + (drawer ? " sidebar-open" : "")}>
+      {drawer && (
+        <button
+          className="sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setDrawer(false)}
+        />
+      )}
+      <aside
+        ref={sidebarRef}
+        id="workspace-navigation"
+        aria-label="Workspace navigation"
+      >
+        <div className="sidebar-top">
+          <div className="brand">
+            <span className="brandmark">
+              <Landmark size={23} />
+            </span>
+            <div>
+              Bank CRM<small>RELATIONSHIP WORKSPACE</small>
+            </div>
           </div>
+          <button
+            className="sidebar-close"
+            aria-label="Close navigation"
+            onClick={() => setDrawer(false)}
+          >
+            <X size={20} />
+          </button>
         </div>
         <div className="bankbadge">
-          <span>YOUR BANK</span>
+          <span>INSTITUTION WORKSPACE</span>
           <strong>{user.bank_name}</strong>
+          <small>{user.bank_code}</small>
         </div>
-        <nav>
-          {pages.map(([id, text, icon]) => (
-            <button
-              key={id}
-              className={page === id ? "selected" : ""}
-              onClick={() => {
-                setPage(id);
-                setError("");
-              }}
-            >
-              <span>{icon}</span>
-              {text}
-            </button>
+        <nav className="sidebar-nav" aria-label="Main">
+          {groups.map(([caption, ids]) => (
+            <div className="nav-group" key={caption}>
+              <span className="nav-caption">{caption}</span>
+              {pages
+                .filter(([id]) => ids.includes(id))
+                .map(([id, text, icon]) => (
+                  <button
+                    key={id}
+                    aria-current={page === id ? "page" : undefined}
+                    className={page === id ? "selected" : ""}
+                    onClick={() => navigate(id)}
+                  >
+                    <span className="nav-icon">{icon}</span>
+                    {text}
+                    {page === id && (
+                      <ChevronRight size={14} className="nav-arrow" />
+                    )}
+                  </button>
+                ))}
+            </div>
           ))}
         </nav>
         <div className="sidebarfoot">
-          Better relationships.
-          <br />
-          Stronger opportunities.<span>BANK RELATIONSHIP WORKSPACE</span>
+          <span className="workspace-tag">
+            <BriefcaseBusiness size={15} />
+            {label(user.role)}
+          </span>
+          <p>
+            Your relationships.
+            <br />
+            Your next opportunity.
+          </p>
+          <small>Records follow your assigned access.</small>
         </div>
       </aside>
-      <main>
+      <main ref={mainRef}>
         <header>
-          <div>
-            <span className="eyebrow">RELATIONSHIP MANAGEMENT</span>
-            <h1>{pages.find((x) => x[0] === page)?.[1]}</h1>
-          </div>
-          <div className="profile">
-            <span className="avatar">{user.name?.slice(0, 1)}</span>
-            <div>
-              <strong>{user.name}</strong>
-              <small>{label(user.role)}</small>
-            </div>
+          <div className="header-title">
             <button
-              className="quiet"
-              onClick={async () => {
-                try {
-                  await api("/auth/logout", "POST");
-                  setUser(null);
-                } catch (e) {
-                  setError(e.message);
-                }
-              }}
+              className="mobile-nav-toggle"
+              aria-label="Open navigation"
+              aria-expanded={drawer}
+              aria-controls="workspace-navigation"
+              onClick={() => setDrawer(true)}
             >
-              Sign out
+              <Menu size={21} />
             </button>
+            <div>
+              <div className="header-breadcrumb">
+                Workspace <ChevronRight size={12} /> <span>{currentPage}</span>
+              </div>
+              <h1>{currentPage}</h1>
+            </div>
+          </div>
+          <div className="header-tools">
+            <div className="header-search">
+              <Search size={16} />
+              <input
+                aria-label="Find a workspace page"
+                placeholder="Find a page…"
+                value={navQuery}
+                onChange={(e) => setNavQuery(e.target.value)}
+              />
+              {navQuery && (
+                <div className="nav-search-results">
+                  {matches.length ? (
+                    matches.map(([id, title]) => (
+                      <button key={id} onClick={() => navigate(id)}>
+                        {title}
+                        <ArrowRight size={14} />
+                      </button>
+                    ))
+                  ) : (
+                    <span>No matching pages</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="profile">
+              <span className="avatar">
+                {user.name
+                  ?.split(" ")
+                  .slice(0, 2)
+                  .map((x) => x[0])
+                  .join("")}
+              </span>
+              <div>
+                <strong>{user.name}</strong>
+                <small>{label(user.role)}</small>
+              </div>
+              <button
+                className="quiet signout"
+                aria-label="Sign out"
+                onClick={async () => {
+                  try {
+                    await api("/auth/logout", "POST");
+                    setUser(null);
+                    csrf = "";
+                    setDrawer(false);
+                  } catch (e) {
+                    setError(e.message);
+                  }
+                }}
+              >
+                <LogOut size={15} />
+                <span>Sign out</span>
+              </button>
+            </div>
           </div>
         </header>
         {error && (
@@ -186,8 +367,16 @@ function App() {
           </div>
         )}
         <div className="content">
-          {["customers", "opportunities", "targets", "products"].includes(page) ? (
-            <SalesPage key={page} page={page} user={user} version={version} refresh={refresh} />
+          {["customers", "opportunities", "targets", "products"].includes(
+            page,
+          ) ? (
+            <SalesPage
+              key={page}
+              page={page}
+              user={user}
+              version={version}
+              refresh={refresh}
+            />
           ) : page === "roadmap" ? (
             <Roadmap />
           ) : (
@@ -198,6 +387,7 @@ function App() {
               version={version}
               refresh={refresh}
               onError={setError}
+              navigate={navigate}
             />
           )}
         </div>
@@ -224,8 +414,38 @@ function Login({ error, onLogin }) {
           A focused workspace for bank marketers and the leaders who support
           them.
         </p>
-        <div className="storyline">
-          Prospects <span>→</span> Relationships <span>→</span> Growth
+        <div className="login-features">
+          {[
+            [
+              UserRound,
+              "Every relationship, organised",
+              "Keep customer context and the next action together.",
+            ],
+            [
+              TrendingUp,
+              "A pipeline with purpose",
+              "Track product conversations from first contact to outcome.",
+            ],
+            [
+              Users,
+              "Your team, connected",
+              "Give managers a clear view of their permitted team.",
+            ],
+          ].map(([Icon, title, description]) => (
+            <div className="login-feature" key={title}>
+              <span>
+                <Icon size={20} />
+              </span>
+              <div>
+                <strong>{title}</strong>
+                <small>{description}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="login-trust">
+          <Landmark size={16} />
+          <span>A dedicated workspace for your institution.</span>
         </div>
       </section>
       <section className="loginpanel">
@@ -249,7 +469,10 @@ function Login({ error, onLogin }) {
             }
           }}
         >
-          <span className="eyebrow">WELCOME BACK</span>
+          <div className="login-formmark">
+            <Landmark size={25} />
+          </div>
+          <span className="eyebrow">YOUR RELATIONSHIP WORKSPACE</span>
           <h2>Sign in to your bank</h2>
           <p>
             Use the institution code and account provided by your administrator.
@@ -283,8 +506,7 @@ function Login({ error, onLogin }) {
             {busy ? "Signing in…" : "Open workspace →"}
           </button>
           <small className="loginhint">
-            Local installation? Follow the project README to configure the server and
-            create the initial accounts.
+            Need access? Contact your bank’s workspace administrator.
           </small>
         </form>
       </section>
@@ -307,7 +529,7 @@ function Select({ title, children, ...props }) {
     </label>
   );
 }
-function DataPage({ page, user, version, refresh, onError }) {
+function DataPage({ page, user, version, refresh, onError, navigate }) {
   const [data, setData] = useState(null),
     [busy, setBusy] = useState(true),
     [q, setQ] = useState(""),
@@ -359,35 +581,95 @@ function DataPage({ page, user, version, refresh, onError }) {
     <>
       {page === "dashboard" && (
         <>
-          <div className="welcome">
+          <div className="welcome dashboard-summary">
             <div>
-              <span className="eyebrow">YOUR WORKDAY, IN FOCUS</span>
-              <h2>Build relationships that last.</h2>
-              <p>Keep your pipeline moving and every next action visible.</p>
+              <span className="eyebrow dashboard-kicker">
+                YOUR WORKDAY, IN FOCUS
+              </span>
+              <h2>
+                {user.role === "marketer"
+                  ? "Make your next conversation count."
+                  : "A clearer view of your team’s work."}
+              </h2>
+              <p>
+                Keep relationships moving, follow-ups visible and your next
+                action clear.
+              </p>
+              <div className="dashboard-actions">
+                {user.role !== "executive" && (
+                  <button className="primary" onClick={() => setModal("lead")}>
+                    + Add lead
+                  </button>
+                )}
+                <button
+                  className="welcome-link"
+                  onClick={() => navigate("activities")}
+                >
+                  Review follow-ups <ArrowUpRight size={16} />
+                </button>
+              </div>
             </div>
-            <span className="welcomemark">↗</span>
+            <div className="dashboard-focus">
+              <CalendarDays size={26} />
+              <strong>{Number(data.metrics?.overdue || 0)}</strong>
+              <span>overdue follow-ups</span>
+              <small>
+                {Number(data.metrics?.overdue || 0) > 0
+                  ? "Give these relationships your attention."
+                  : "No overdue follow-ups in your scope."}
+              </small>
+            </div>
           </div>
           <div className="metrics">
             {[
-              ["leads", "Total leads"],
-              ["active", "Active leads"],
-              ["won", "Leads marked won"],
-              ["overdue", "Overdue follow-ups"],
-            ].map(([k, t]) => (
-              <div className="metric" key={k}>
-                <span>{t}</span>
-                <strong>{data.metrics?.[k] ?? 0}</strong>
-                <small>
-                  {k === "overdue"
-                    ? "Due actions needing attention"
-                    : "Within your permitted scope"}
-                </small>
+              [
+                "leads",
+                "Total leads",
+                UserRound,
+                "Prospects in your workspace",
+              ],
+              [
+                "active",
+                "Active leads",
+                TrendingUp,
+                "Open relationship conversations",
+              ],
+              [
+                "won",
+                "Leads marked won",
+                CheckCircle2,
+                "Recorded sales outcomes",
+              ],
+              [
+                "overdue",
+                "Overdue follow-ups",
+                Clock3,
+                "Actions past their due date",
+              ],
+            ].map(([key, title, Icon, caption]) => (
+              <div className={"metric metric-" + key} key={key}>
+                <div className="metric-top">
+                  <span>{title}</span>
+                  <span className="metric-icon">
+                    <Icon size={19} />
+                  </span>
+                </div>
+                <strong>{data.metrics?.[key] ?? 0}</strong>
+                <small className="metric-foot">{caption}</small>
               </div>
             ))}
           </div>
           <div className="twocol">
             <section className="card">
-              <h3>Pipeline snapshot</h3>
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow">RELATIONSHIP PROGRESS</span>
+                  <h3>Pipeline snapshot</h3>
+                </div>
+                <span className="section-count">
+                  {data.metrics?.leads ?? 0} leads
+                </span>
+              </div>
               {statuses.map((s) => {
                 let n = data.stages?.find((x) => x.status === s)?.count || 0;
                 return (
@@ -396,7 +678,7 @@ function DataPage({ page, user, version, refresh, onError }) {
                     <div>
                       <i
                         style={{
-                          width: `${Math.max(n ? 5 : 0, (Number(n) / Math.max(1, data.metrics?.leads || 1)) * 100)}%`,
+                          width: `${(Number(n) / Math.max(1, Number(data.metrics?.leads || 0))) * 100}%`,
                         }}
                       />
                     </div>
@@ -406,7 +688,18 @@ function DataPage({ page, user, version, refresh, onError }) {
               })}
             </section>
             <section className="card">
-              <h3>Upcoming follow-ups</h3>
+              <div className="section-heading">
+                <div>
+                  <span className="eyebrow">NEXT ACTIONS</span>
+                  <h3>Upcoming follow-ups</h3>
+                </div>
+                <button
+                  className="text-action"
+                  onClick={() => navigate("activities")}
+                >
+                  View all <ArrowRight size={14} />
+                </button>
+              </div>
               <Activities
                 items={data.upcoming || []}
                 refresh={refresh}
@@ -416,7 +709,15 @@ function DataPage({ page, user, version, refresh, onError }) {
             </section>
           </div>
           <section className="card">
-            <h3>Recent leads</h3>
+            <div className="section-heading">
+              <div>
+                <span className="eyebrow">RECENT RELATIONSHIPS</span>
+                <h3>Latest leads in your workspace</h3>
+              </div>
+              <button className="text-action" onClick={() => navigate("leads")}>
+                View pipeline <ArrowRight size={14} />
+              </button>
+            </div>
             <LeadTable items={data.recent || []} open={open} />
           </section>
         </>
@@ -561,7 +862,12 @@ function DataPage({ page, user, version, refresh, onError }) {
     </>
   );
 }
-function Table({ headers, rows }) {
+function Table({
+  headers,
+  rows,
+  emptyTitle = "Your workspace is ready",
+  emptyText = "Records will appear here as your team adds them.",
+}) {
   return rows.length ? (
     <div className="tablewrap">
       <table>
@@ -584,12 +890,20 @@ function Table({ headers, rows }) {
       </table>
     </div>
   ) : (
-    <div className="empty">No records yet. Your next action starts here.</div>
+    <div className="empty">
+      <span className="empty-icon">
+        <BriefcaseBusiness size={27} />
+      </span>
+      <strong>{emptyTitle}</strong>
+      <p>{emptyText}</p>
+    </div>
   );
 }
 function LeadTable({ items, open }) {
   return (
     <Table
+      emptyTitle="Start your next relationship"
+      emptyText="Add a lead to keep contact details, product interests and follow-ups together."
       headers={[
         "Relationship",
         "Product interest",
@@ -599,8 +913,15 @@ function LeadTable({ items, open }) {
       ]}
       rows={items.map((l) => [
         <button className="link" onClick={() => open(l)}>
-          {l.name}
-          <small>{l.company || l.email || "Individual prospect"}</small>
+          <span className="relationship-cell">
+            <span className="relationship-avatar" aria-hidden="true">
+              {l.name?.slice(0, 1)}
+            </span>
+            <span>
+              {l.name}
+              <small>{l.company || l.email || "Individual prospect"}</small>
+            </span>
+          </span>
         </button>,
         l.product || "—",
         <span className={"pill " + l.status}>{label(l.status)}</span>,
@@ -615,7 +936,9 @@ function Activities({ items, refresh, onError, readOnly = false }) {
     <div className="activities">
       {items.map((a) => (
         <div className="activity" key={a.id}>
-          <span className="activityicon"><CalendarDays size={17}/></span>
+          <span className="activityicon">
+            <CalendarDays size={17} />
+          </span>
           <div>
             <strong>{a.summary}</strong>
             <small>
@@ -645,11 +968,18 @@ function Activities({ items, refresh, onError, readOnly = false }) {
       ))}
     </div>
   ) : (
-    <div className="empty">No follow-ups to display.</div>
+    <div className="empty">
+      <span className="empty-icon">
+        <CalendarDays size={26} />
+      </span>
+      <strong>No follow-ups to display</strong>
+      <p>Record the next action from a lead’s detail view.</p>
+    </div>
   );
 }
 function Modal({ title, close, children }) {
   const panel = useRef(null);
+  const headingId = useId();
   useEffect(() => {
     const previous = document.activeElement;
     const nodes = () =>
@@ -681,16 +1011,21 @@ function Modal({ title, close, children }) {
     };
   }, []);
   return (
-    <div className="overlay">
+    <div
+      className="overlay"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) close();
+      }}
+    >
       <section
         ref={panel}
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={headingId}
       >
         <div className="modalhead">
-          <h2>{title}</h2>
+          <h2 id={headingId}>{title}</h2>
           <button className="quiet" onClick={close} aria-label="Close dialog">
             ✕
           </button>
@@ -915,7 +1250,7 @@ function LeadDetail({ detail, close, updated, readOnly }) {
     );
   return (
     <Modal title={l.name} close={close}>
-      <div className="detailtop">
+      <div className="detailtop detail-summary">
         <div>
           <span className={"pill " + l.status}>{label(l.status)}</span>
           <p>
@@ -924,22 +1259,60 @@ function LeadDetail({ detail, close, updated, readOnly }) {
           </p>
         </div>
         {!readOnly && (
-          <div className="detailbuttons"><button className="quiet" onClick={() => setEdit(true)}>Edit lead</button>{!l.customer_id && <button className="primary" disabled={busy} onClick={async () => { setBusy(true); try { await api(`/leads/${l.id}/convert`, "POST"); await updated(); } catch(e) { setError(e.message); } finally { setBusy(false); } }}>Convert to customer</button>}</div>
+          <div className="detailbuttons">
+            <button className="quiet" onClick={() => setEdit(true)}>
+              Edit lead
+            </button>
+            {!l.customer_id && (
+              <button
+                className="primary"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await api(`/leads/${l.id}/convert`, "POST");
+                    await updated();
+                  } catch (e) {
+                    setError(e.message);
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                Convert to customer
+              </button>
+            )}
+          </div>
         )}
       </div>
-      <dl>
+      <dl className="detail-contact">
         <dt>Email</dt>
-        <dd>{l.email || "—"}</dd>
+        <dd>
+          {l.email ? (
+            <a href={"mailto:" + l.email}>{l.email}</a>
+          ) : (
+            "Not recorded"
+          )}
+        </dd>
         <dt>Phone</dt>
-        <dd>{l.phone || "—"}</dd>
+        <dd>{l.phone || "Not recorded"}</dd>
         <dt>Owner</dt>
         <dd>{l.owner_name || "—"}</dd>
         <dt>Follow-up</dt>
         <dd>{date(l.next_follow_up)}</dd>
       </dl>
-      {error && <div className="error" role="alert">{error}</div>}
-      {l.customer_id && <p className="muted">Converted to a customer record.</p>}
-      <p className="notes">{l.notes || "No relationship notes yet."}</p>
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
+      {l.customer_id && (
+        <p className="muted">Converted to a customer record.</p>
+      )}
+      <div className="detail-notes">
+        <span className="eyebrow">RELATIONSHIP CONTEXT</span>
+        <p className="notes">{l.notes || "No relationship notes yet."}</p>
+      </div>
       {!readOnly && (
         <>
           <h3>Record an interaction or next action</h3>
@@ -999,26 +1372,431 @@ function LeadDetail({ detail, close, updated, readOnly }) {
 }
 
 // Sales modules fetch scoped records; activity goals are separate from verified financial outcomes.
-function SalesPage({page,user,version,refresh}) {
-  const [data,setData]=useState(null), [error,setError]=useState(""), [modal,setModal]=useState(null), [search,setSearch]=useState("");
-  useEffect(()=>{let active=true; setData(null); api('/'+page).then(x=>active&&setData(x)).catch(e=>active&&setError(e.message)); return ()=>{active=false};},[page,version]);
-  const canCreate=page==='products' ? ['bank_admin','head_of_sales'].includes(user.role) : page==='targets' ? ['bank_admin','head_of_sales','team_leader','branch_manager','regional_manager'].includes(user.role) : user.role!=='executive';
-  const titles={customers:['Customer relationships','Maintain the people and businesses in your portfolio.'],opportunities:['Your next opportunity','Move product conversations through a clear sales pipeline.'],targets:['Focus on the right actions','Track activity goals across your permitted team.'],products:['Product catalogue','A shared reference for your bank’s sales conversations.']};
-  const items=(data?.[page]||[]).filter(x=>JSON.stringify(x).toLowerCase().includes(search.toLowerCase()));
-  const headers={customers:['Customer','Company','Contact','Owner','Notes'],opportunities:['Opportunity','Customer','Product','Estimated value','Stage','Owner','Expected close'],targets:['Staff member','Metric','Progress','Period'],products:['Product','Category','Description']};
-  const rows=items.map(x=>page==='customers'?[x.name,x.company||'—',<div>{x.email||'—'}<small>{x.phone}</small></div>,x.owner_name||'—',<span className="cliptext">{x.notes||'—'}</span>]:page==='opportunities'?[<button className="link" disabled={user.role==='executive'} onClick={()=>setModal(x)}>{x.title}</button>,x.customer_name||'—',x.product||'—',new Intl.NumberFormat(undefined,{style:'currency',currency:x.currency||'USD'}).format(Number(x.amount)||0),<span className={'pill '+x.stage}>{label(x.stage)}</span>,x.owner_name||'—',date(x.expected_close)]:page==='targets'?[x.user_name||x.name,label(x.metric),<div><strong>{x.actual||0} / {x.goal}</strong><progress max={Number(x.goal)||1} value={Math.min(Number(x.actual)||0,Number(x.goal)||1)}/></div>,date(x.period_start)+' – '+date(x.period_end)]:[x.name,x.category||'—',x.description||'—']);
-  return <><div className="toolbar"><div><h2>{titles[page][0]}</h2><p>{titles[page][1]}</p></div>{canCreate&&<button className="primary" onClick={()=>setModal('new')}>+ Add {page==='opportunities'?'opportunity':page.slice(0,-1)}</button>}</div>{error&&<div className="error" role="alert">{error}</div>}<div className="filters"><input aria-label={'Search '+page} placeholder={'Search '+page+'…'} value={search} onChange={e=>setSearch(e.target.value)}/><span className="resultcount">{items.length} records</span></div>{!data&&!error?<div className="loading">Loading records…</div>:data?<section className="card"><Table headers={headers[page]} rows={rows}/></section>:<button className="quiet" onClick={refresh}>Try again</button>}{page==='opportunities'&&<p className="muted">Amounts are estimates. A Won stage records a sales outcome; it does not confirm deposits, disbursements or account activation.</p>}{page==='targets'&&<p className="muted">Goals measure CRM activity. Financial targets require authorised banking integrations and agreed metric definitions.</p>}{modal&&<SalesEditor page={page} record={modal==='new'?null:modal} close={()=>setModal(null)} done={()=>{setModal(null);refresh()}}/>}</>;
+function SalesPage({ page, user, version, refresh }) {
+  const [data, setData] = useState(null),
+    [error, setError] = useState(""),
+    [modal, setModal] = useState(null),
+    [search, setSearch] = useState("");
+  useEffect(() => {
+    let active = true;
+    setData(null);
+    api("/" + page)
+      .then((x) => active && setData(x))
+      .catch((e) => active && setError(e.message));
+    return () => {
+      active = false;
+    };
+  }, [page, version]);
+  const canCreate =
+    page === "products"
+      ? ["bank_admin", "head_of_sales"].includes(user.role)
+      : page === "targets"
+        ? [
+            "bank_admin",
+            "head_of_sales",
+            "team_leader",
+            "branch_manager",
+            "regional_manager",
+          ].includes(user.role)
+        : user.role !== "executive";
+  const titles = {
+    customers: [
+      "Customer relationships",
+      "Maintain the people and businesses in your portfolio.",
+    ],
+    opportunities: [
+      "Your next opportunity",
+      "Move product conversations through a clear sales pipeline.",
+    ],
+    targets: [
+      "Focus on the right actions",
+      "Track activity goals across your permitted team.",
+    ],
+    products: [
+      "Product catalogue",
+      "A shared reference for your bank’s sales conversations.",
+    ],
+  };
+  const items = (data?.[page] || []).filter((x) =>
+    JSON.stringify(x).toLowerCase().includes(search.toLowerCase()),
+  );
+  const headers = {
+    customers: ["Customer", "Company", "Contact", "Owner", "Notes"],
+    opportunities: [
+      "Opportunity",
+      "Customer",
+      "Product",
+      "Estimated value",
+      "Stage",
+      "Owner",
+      "Expected close",
+    ],
+    targets: ["Staff member", "Metric", "Progress", "Period"],
+    products: ["Product", "Category", "Description"],
+  };
+  const rows = items.map((x) =>
+    page === "customers"
+      ? [
+          x.name,
+          x.company || "—",
+          <div>
+            {x.email || "—"}
+            <small>{x.phone}</small>
+          </div>,
+          x.owner_name || "—",
+          <span className="cliptext">{x.notes || "—"}</span>,
+        ]
+      : page === "opportunities"
+        ? [
+            <button
+              className="link"
+              disabled={user.role === "executive"}
+              onClick={() => setModal(x)}
+            >
+              {x.title}
+            </button>,
+            x.customer_name || "—",
+            x.product || "—",
+            new Intl.NumberFormat(undefined, {
+              style: "currency",
+              currency: x.currency || "USD",
+            }).format(Number(x.amount) || 0),
+            <span className={"pill " + x.stage}>{label(x.stage)}</span>,
+            x.owner_name || "—",
+            date(x.expected_close),
+          ]
+        : page === "targets"
+          ? [
+              x.user_name || x.name,
+              label(x.metric),
+              <div>
+                <strong>
+                  {x.actual || 0} / {x.goal}
+                </strong>
+                <progress
+                  max={Number(x.goal) || 1}
+                  value={Math.min(Number(x.actual) || 0, Number(x.goal) || 1)}
+                />
+              </div>,
+              date(x.period_start) + " – " + date(x.period_end),
+            ]
+          : [x.name, x.category || "—", x.description || "—"],
+  );
+  return (
+    <>
+      <div className="toolbar">
+        <div>
+          <h2>{titles[page][0]}</h2>
+          <p>{titles[page][1]}</p>
+        </div>
+        {canCreate && (
+          <button className="primary" onClick={() => setModal("new")}>
+            + Add {page === "opportunities" ? "opportunity" : page.slice(0, -1)}
+          </button>
+        )}
+      </div>
+      {error && (
+        <div className="error" role="alert">
+          {error}
+        </div>
+      )}
+      <div className="filters">
+        <input
+          aria-label={"Search " + page}
+          placeholder={"Search " + page + "…"}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <span className="resultcount">{items.length} records</span>
+      </div>
+      {!data && !error ? (
+        <div className="loading">Loading records…</div>
+      ) : data ? (
+        <section className="card">
+          <Table headers={headers[page]} rows={rows} />
+        </section>
+      ) : (
+        <button className="quiet" onClick={refresh}>
+          Try again
+        </button>
+      )}
+      {page === "opportunities" && (
+        <p className="muted">
+          Amounts are estimates. A Won stage records a sales outcome; it does
+          not confirm deposits, disbursements or account activation.
+        </p>
+      )}
+      {page === "targets" && (
+        <p className="muted">
+          Goals measure CRM activity. Financial targets require authorised
+          banking integrations and agreed metric definitions.
+        </p>
+      )}
+      {modal && (
+        <SalesEditor
+          page={page}
+          record={modal === "new" ? null : modal}
+          close={() => setModal(null)}
+          done={() => {
+            setModal(null);
+            refresh();
+          }}
+        />
+      )}
+    </>
+  );
 }
-function SalesEditor({page,record,close,done}) {
-  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[users,setUsers]=useState([]),[customers,setCustomers]=useState([]),[products,setProducts]=useState([]);
-  useEffect(()=>{if(page==='targets'||page==='customers')api('/users').then(x=>setUsers(x.users)).catch(e=>setError(e.message));if(page==='opportunities')Promise.all([api('/customers'),api('/products')]).then(([c,p])=>{setCustomers(c.customers);setProducts(p.products)}).catch(e=>setError(e.message));},[page]);
-  const singular={customers:'customer',opportunities:'opportunity',targets:'target',products:'product'}[page];
-  return <Modal title={(record?'Update ':'New ')+singular} close={close}><form onSubmit={async e=>{e.preventDefault();setBusy(true);setError(''); const values=Object.fromEntries(new FormData(e.target)); ['user_id','customer_id','owner_id','goal'].forEach(k=>{if(k in values){if(values[k]==='')delete values[k];else values[k]=Number(values[k])}});if('expected_close' in values&&!values.expected_close)values.expected_close=null;try{await api('/'+page+(record?'/'+record.id:''),record?'PATCH':'POST',values);done()}catch(x){setError(x.message)}finally{setBusy(false)}}}>{error&&<div className="error" role="alert">{error}</div>}<div className="formgrid">
-  {page==='customers'&&<><Field title="Customer name" name="name" required maxLength={160}/><Field title="Company" name="company" maxLength={160}/><Field title="Email" name="email" type="email"/><Field title="Phone" name="phone" maxLength={40}/><Select title="Relationship owner" name="owner_id"><option value="">Assign to me</option>{users.filter(x=>x.role!=='executive').map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</Select></>}
-  {page==='opportunities'&&<><Field title="Opportunity title" name="title" required maxLength={160} defaultValue={record?.title}/><Select title="Customer" name="customer_id" required defaultValue={record?.customer_id||''}><option value="">Choose customer</option>{customers.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</Select><Field title="Product" name="product" list="bank-products" maxLength={120} required defaultValue={record?.product}/><datalist id="bank-products">{products.map(x=><option key={x.id} value={x.name}/>)}</datalist><Field title="Estimated value" name="amount" type="number" min="0" step="0.01" required defaultValue={record?.amount||0}/><Field title="Currency (3-letter code)" name="currency" pattern="[A-Z]{3}" maxLength={3} required defaultValue={record?.currency||'USD'}/><Select title="Stage" name="stage" defaultValue={record?.stage||'new'}>{['new','qualified','proposal','onboarding','won','lost'].map(x=><option key={x} value={x}>{label(x)}</option>)}</Select><Field title="Expected close" name="expected_close" type="date" defaultValue={record?.expected_close?.slice(0,10)}/></>}
-  {page==='targets'&&<><Select title="Staff member" name="user_id" required><option value="">Choose staff member</option>{users.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</Select><Select title="Activity metric" name="metric">{['leads_created','customers_created','opportunities_won'].map(x=><option key={x} value={x}>{label(x)}</option>)}</Select><Field title="Goal" name="goal" type="number" min="1" step="1" required/><Field title="Period starts" name="period_start" type="date" required/><Field title="Period ends" name="period_end" type="date" required/></>}
-  {page==='products'&&<><Field title="Product name" name="name" maxLength={120} required/><Field title="Category" name="category" maxLength={80} required/></>}
-  </div>{['customers','opportunities'].includes(page)&&<label>Relationship notes<textarea name="notes" rows="4" maxLength={5000} defaultValue={record?.notes}/></label>}{page==='products'&&<label>Description<textarea name="description" rows="4" maxLength={2000}/></label>}{page==='opportunities'&&!customers.length&&<p>Create a customer before adding an opportunity.</p>}<div className="formactions"><button type="button" className="quiet" onClick={close}>Cancel</button><button className="primary" disabled={busy||(page==='opportunities'&&!customers.length)}>{busy?'Saving…':'Save '+singular}</button></div></form></Modal>;
+function SalesEditor({ page, record, close, done }) {
+  const [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [users, setUsers] = useState([]),
+    [customers, setCustomers] = useState([]),
+    [products, setProducts] = useState([]);
+  useEffect(() => {
+    if (page === "targets" || page === "customers")
+      api("/users")
+        .then((x) => setUsers(x.users))
+        .catch((e) => setError(e.message));
+    if (page === "opportunities")
+      Promise.all([api("/customers"), api("/products")])
+        .then(([c, p]) => {
+          setCustomers(c.customers);
+          setProducts(p.products);
+        })
+        .catch((e) => setError(e.message));
+  }, [page]);
+  const singular = {
+    customers: "customer",
+    opportunities: "opportunity",
+    targets: "target",
+    products: "product",
+  }[page];
+  return (
+    <Modal title={(record ? "Update " : "New ") + singular} close={close}>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError("");
+          const values = Object.fromEntries(new FormData(e.target));
+          ["user_id", "customer_id", "owner_id", "goal"].forEach((k) => {
+            if (k in values) {
+              if (values[k] === "") delete values[k];
+              else values[k] = Number(values[k]);
+            }
+          });
+          if ("expected_close" in values && !values.expected_close)
+            values.expected_close = null;
+          try {
+            await api(
+              "/" + page + (record ? "/" + record.id : ""),
+              record ? "PATCH" : "POST",
+              values,
+            );
+            done();
+          } catch (x) {
+            setError(x.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
+        <div className="formgrid">
+          {page === "customers" && (
+            <>
+              <Field
+                title="Customer name"
+                name="name"
+                required
+                maxLength={160}
+              />
+              <Field title="Company" name="company" maxLength={160} />
+              <Field title="Email" name="email" type="email" />
+              <Field title="Phone" name="phone" maxLength={40} />
+              <Select title="Relationship owner" name="owner_id">
+                <option value="">Assign to me</option>
+                {users
+                  .filter((x) => x.role !== "executive")
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+              </Select>
+            </>
+          )}
+          {page === "opportunities" && (
+            <>
+              <Field
+                title="Opportunity title"
+                name="title"
+                required
+                maxLength={160}
+                defaultValue={record?.title}
+              />
+              <Select
+                title="Customer"
+                name="customer_id"
+                required
+                defaultValue={record?.customer_id || ""}
+              >
+                <option value="">Choose customer</option>
+                {customers.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </Select>
+              <Field
+                title="Product"
+                name="product"
+                list="bank-products"
+                maxLength={120}
+                required
+                defaultValue={record?.product}
+              />
+              <datalist id="bank-products">
+                {products.map((x) => (
+                  <option key={x.id} value={x.name} />
+                ))}
+              </datalist>
+              <Field
+                title="Estimated value"
+                name="amount"
+                type="number"
+                min="0"
+                step="0.01"
+                required
+                defaultValue={record?.amount || 0}
+              />
+              <Field
+                title="Currency (3-letter code)"
+                name="currency"
+                pattern="[A-Z]{3}"
+                maxLength={3}
+                required
+                defaultValue={record?.currency || "USD"}
+              />
+              <Select
+                title="Stage"
+                name="stage"
+                defaultValue={record?.stage || "new"}
+              >
+                {[
+                  "new",
+                  "qualified",
+                  "proposal",
+                  "onboarding",
+                  "won",
+                  "lost",
+                ].map((x) => (
+                  <option key={x} value={x}>
+                    {label(x)}
+                  </option>
+                ))}
+              </Select>
+              <Field
+                title="Expected close"
+                name="expected_close"
+                type="date"
+                defaultValue={record?.expected_close?.slice(0, 10)}
+              />
+            </>
+          )}
+          {page === "targets" && (
+            <>
+              <Select title="Staff member" name="user_id" required>
+                <option value="">Choose staff member</option>
+                {users.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
+                  </option>
+                ))}
+              </Select>
+              <Select title="Activity metric" name="metric">
+                {[
+                  "leads_created",
+                  "customers_created",
+                  "opportunities_won",
+                ].map((x) => (
+                  <option key={x} value={x}>
+                    {label(x)}
+                  </option>
+                ))}
+              </Select>
+              <Field
+                title="Goal"
+                name="goal"
+                type="number"
+                min="1"
+                step="1"
+                required
+              />
+              <Field
+                title="Period starts"
+                name="period_start"
+                type="date"
+                required
+              />
+              <Field
+                title="Period ends"
+                name="period_end"
+                type="date"
+                required
+              />
+            </>
+          )}
+          {page === "products" && (
+            <>
+              <Field
+                title="Product name"
+                name="name"
+                maxLength={120}
+                required
+              />
+              <Field title="Category" name="category" maxLength={80} required />
+            </>
+          )}
+        </div>
+        {["customers", "opportunities"].includes(page) && (
+          <label>
+            Relationship notes
+            <textarea
+              name="notes"
+              rows="4"
+              maxLength={5000}
+              defaultValue={record?.notes}
+            />
+          </label>
+        )}
+        {page === "products" && (
+          <label>
+            Description
+            <textarea name="description" rows="4" maxLength={2000} />
+          </label>
+        )}
+        {page === "opportunities" && !customers.length && (
+          <p>Create a customer before adding an opportunity.</p>
+        )}
+        <div className="formactions">
+          <button type="button" className="quiet" onClick={close}>
+            Cancel
+          </button>
+          <button
+            className="primary"
+            disabled={busy || (page === "opportunities" && !customers.length)}
+          >
+            {busy ? "Saving…" : "Save " + singular}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
 }
 function Roadmap() {
   return (
@@ -1028,7 +1806,8 @@ function Roadmap() {
           <span className="eyebrow">BUILT IN REVIEWABLE STAGES</span>
           <h2>A clear path from foundation to enterprise.</h2>
           <p>
-            This release provides relationship and sales workflows. Bank connections and production qualification remain future work.
+            This release provides relationship and sales workflows. Bank
+            connections and production qualification remain future work.
           </p>
         </div>
       </div>
